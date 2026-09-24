@@ -1,11 +1,3 @@
-# Entry point: headless training, or a live game window with a stats panel.
-#
-# Runs one of two modes:
-#   * --headless: pure training loop, no pygame, periodic logs and saves.
-#   * visual (default): pygame window with frames-per-frame rendering, speed
-#     control, pause, save/reset keys, and the option to watch a greedy "demo"
-#     of the current policy (see the README for the key bindings).
-
 import argparse
 import os
 import time
@@ -13,8 +5,8 @@ import time
 from agent import QAgent, Stats, load, save
 from game import FlappyEnv, MAX_SCORE
 
-# Selectable simulation speeds (in frames per step). 0 means "max" (as fast
-# as the machine allows) and is only reachable in speed-up mode.
+# Selectable simulation speeds in frames per redraw; 0 means "max" (as fast
+# as the machine allows) and is only reachable via the speed-up keys.
 SPEEDS = [1, 2, 4, 8, 16, 32, 100, 500, 0]
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -34,7 +26,7 @@ def parse_args():
 
 
 def setup(args):
-    # Create a fresh env and (unless --fresh) load the saved model + stats.
+    # Fresh env and agent; unless --fresh, fold the saved model + stats in.
     agent = QAgent()
     stats = Stats(goal=args.goal)
     loaded = False
@@ -44,11 +36,9 @@ def setup(args):
 
 
 def finish_episode(env, agent, stats, learning):
-    # End the current episode and either apply/append the result or drop it.
-    #
-    # In learning mode the trajectory is replayed into the Q-table and the
-    # score recorded; in demo mode the trajectory is discarded. Either way
-    # the env is reset for the next episode.
+    # Wrap up an episode: in learning mode the trajectory is replayed into
+    # the table and the score recorded, in demo mode it is thrown away.
+    # Either way the env is reset for the next episode.
     if learning:
         agent.learn()
         stats.add(env.score)
@@ -58,8 +48,8 @@ def finish_episode(env, agent, stats, learning):
 
 
 def run_headless(args):
-    # Train `--episodes` episodes with no window, printing a progress line
-    # every 100 episodes and autosaving every 500. Ctrl+C stops (and saves).
+    # Train `--episodes` episodes with no window: a progress line every 100
+    # episodes, an autosave every 500, Ctrl+C to stop early.
     env, agent, stats, loaded = setup(args)
     total = args.episodes or 5000
     print(f"{'resumed' if loaded else 'new'} model: {args.model} ({stats.episodes} episodes so far)")
@@ -92,8 +82,8 @@ def run_headless(args):
 
 
 def run_visual(args):
-    # Main visual loop. pygame is imported lazily so headless mode stays
-    # dependency-free of the display.
+    # Windowed mode: the game view plus the live stats panel. pygame is
+    # imported lazily so the headless path never depends on a display.
     import pygame
 
     from render import Renderer
@@ -101,26 +91,30 @@ def run_visual(args):
     env, agent, stats, loaded = setup(args)
     ui = Renderer()
     clock = pygame.time.Clock()
-    speed_i = SPEEDS.index(args.speed)   # arrow keys move this index
-    visuals = True                       # V toggles the game view
+    # Loop state: `speed_i` indexes SPEEDS (arrow keys walk it), `visuals`
+    # is the V toggle for the game view, `learning` flips demo/training on
+    # D, and chart_tick only bumps when a fresh episode lands so the cached
+    # chart surface knows it's time to redraw.
+    speed_i = SPEEDS.index(args.speed)
+    visuals = True
     paused = False
     learning = not args.demo
     toast, toast_until = ("resumed saved model" if loaded else ""), time.time() + 2.5
-    chart_tick = 0                       # bump to force a chart redraw
+    chart_tick = 0
     last_chart = 0.0
     chart_eps = -1
-    sps, sps_steps, sps_time = 0.0, 0, time.time()   # steps/sec metering
+    sps, sps_steps, sps_time = 0.0, 0, time.time()
     target = stats.episodes + args.episodes if args.episodes else None
     state = env.state()
     running = True
 
     def notify(msg):
-        # Show a short toast message in the corner of the game view.
+        # Corner toast that lingers for 2 seconds.
         nonlocal toast, toast_until
         toast, toast_until = msg, time.time() + 2.0
 
     while running:
-        # --- Input ---------------------------------------------------------
+        # ---- Input ----
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
@@ -156,13 +150,17 @@ def run_visual(args):
                     sps, sps_steps, sps_time = 0.0, 0, time.time()
                     notify("training reset")
 
-        # --- Simulation -----------------------------------------------------
-        # When visuals are off the speed is effectively "max" (0), so each
-        # loop iteration advances as many frames as fit in a 14 ms budget.
+        # ---- Simulation ----
+        # With visuals off the speed is effectively "max" (0), so each loop
+        # iteration advances as many frames as fit in a 14 ms budget.
         if not paused:
             speed = SPEEDS[speed_i] if visuals else 0
             deadline = time.perf_counter() + 0.014
             n = 0
+            # Step frames until one of the stops trips: the requested stepped
+            # speed, a whole episode at the slowest speeds (keeps the view
+            # from stalling mid-run), the 14 ms budget under "max", or a
+            # reached episode target.
             while True:
                 action = agent.act(state, greedy=not learning)
                 nxt, reward, done = env.step(action)
@@ -179,14 +177,16 @@ def run_visual(args):
                         running = False
                         break
                     if speed and speed <= 4:
-                        break   # at human-ish speeds, redraw after each episode
+                        break
                 if speed and n >= speed:
-                    break   # stepped speed reached, time to redraw
+                    break
                 if time.perf_counter() > deadline:
                     break
             sps_steps += n
 
-        # --- Status refresh -------------------------------------------------
+        # ---- Status refresh ----
+        # Steps/second is rolled over a half-second window, and the chart
+        # redraw flag only fires once per fresh episode with a small debounce.
         now = time.time()
         if now - sps_time >= 0.5:
             sps = sps_steps / (now - sps_time)

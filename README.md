@@ -10,13 +10,13 @@ A Q-learning agent learning to play Flappy Bird. The game runs on the left of th
 ./run.sh --demo       # watch the learned policy, no learning
 ```
 
-On first run the scripts create `.venv` and install `pygame-ce`. Progress is saved to `model.json` and picked up again by both modes, so you can train headless and then watch it. Add `--fresh` to start over.
+On first run the scripts create `.venv` (Python 3.14+) and install the dependencies in `requirements.txt` — `pygame-ce` for rendering and `numpy` for the Boids simulator. Progress is saved to `model.json` and picked up again by both modes, so you can train headless and then watch it. Add `--fresh` to start over.
 
 If the model file is missing the agent starts from scratch (an untrained bird flaps randomly until it learns not to hit the ground).
 
 ## How it works
 
-The project is four small modules:
+The Flappy project is four small modules:
 
 | File          | Purpose                                                            |
 | ------------- | ------------------------------------------------------------------ |
@@ -53,17 +53,28 @@ The project is four small modules:
 
 `save()` writes `model.json` atomically (temp file + rename) on exit, on `S`, and every 500 episodes headless. The file stores the epsilon value, the entire Q-table, and raw episode scores (averages/success rates are recomputed on load).
 
+## Also in this repo: Boids
+
+`boid.py` is a separate, self-contained project: a fullscreen simulation of Reynolds' boids tuned live through an on-screen panel (sliders for population, speed, perception radius and the separation/alignment/cohesion weights, plus three preset templates). Run it directly:
+
+```
+.venv/bin/python boid.py
+```
+
+It needs a display and `numpy`.
+
 ## Controls (visual mode)
 
 | Key | Action |
 | --- | --- |
 | SPACE | pause |
-| ↑ / ↓ | speed (1x … 500x, max) |
+| ↑ / → / + | speed up (1x … 500x, max) |
+| ↓ / ← / − | speed down |
 | V | turn the game view off/on (off trains at full speed, charts keep updating) |
 | D | switch between demo and training |
 | S | save |
 | R | reset training (fresh model + stats) |
-| ESC | quit and save |
+| ESC / Q | quit and save |
 
 ## Options
 

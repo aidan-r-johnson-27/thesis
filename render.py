@@ -1,10 +1,3 @@
-# Pygame rendering: the game itself plus the live training-data panel.
-#
-# The screen is split in two: the game view (left, `WIDTH` wide) and a stats
-# panel (right, `PANEL_W` wide) showing episode cards and two charts
-# (score-per-episode and success rate). `Renderer` pre-renders the static
-# pieces (sky gradient, bird sprite) once for speed.
-
 import math
 import random
 
@@ -12,11 +5,13 @@ import pygame
 
 from game import BIRD_R, BIRD_X, GROUND, HEIGHT, PIPE_GAP, PIPE_SPEED, PIPE_W, WIDTH
 
-# --- Screen layout ------------------------------------------------------------
-PANEL_W = 560     # width of the stats panel on the right
+# ---- Screen layout ----
+# The window is the game column on the left plus a stats panel on the right,
+# sized so both halves land on whole pixels.
+PANEL_W = 560
 SCREEN_W = WIDTH + PANEL_W
 
-# --- Game palette (RGB) -------------------------------------------------------
+# ---- Game palette (RGB) ----
 SKY_TOP = (78, 173, 214)
 SKY_BOTTOM = (178, 227, 238)
 PIPE = (94, 186, 72)
@@ -29,7 +24,7 @@ BIRD = (250, 204, 40)
 BIRD_DARK = (222, 150, 20)
 BEAK = (245, 110, 40)
 
-# --- Panel palette (dark UI) --------------------------------------------------
+# ---- Panel palette (dark UI) ----
 BG = (17, 20, 27)
 CARD = (27, 31, 41)
 GRID = (42, 47, 60)
@@ -52,10 +47,9 @@ def font(size, bold=False):
 
 
 def nice_max(v):
-    # Rounded-up axis maximum so chart ticks land on "nice" numbers.
-    #
-    # Returns 4 for small values, else the smallest 1/2/2.5/5x10^k magic
-    # number that is >= v.
+    # Round an axis maximum up to a "nice" 1/2/2.5/5 x 10^k number so chart
+    # gridlines carry clean labels; small values floor at 4 to keep the same
+    # tick spacing when a run is still young.
     if v <= 4:
         return 4
     mag = 10 ** math.floor(math.log10(v))
@@ -83,8 +77,8 @@ class Renderer:
         rng = random.Random(3)
         self.clouds = [(rng.uniform(0, WIDTH), rng.uniform(40, 300), rng.uniform(0.6, 1.3)) for _ in range(6)]
         self.scroll = 0.0
-        self.chart = None       # cached composite chart surface
-        self.chart_key = None   # redraw only when this key (episode tick) changes
+        self.chart = None       # Cached composite chart surface.
+        self.chart_key = None   # Redraw only when this key (episode tick) changes.
 
     def _make_sky(self):
         # Pre-render the vertical sky-gradient as a reusable surface.
@@ -265,12 +259,10 @@ class Renderer:
         return surf
 
     def _chart(self, surf, rect, title, points, line, top, legend, best, percent=False):
-        # Draw one chart into `surf`.
-        #
-        # `points` are individual per-episode dots (may be downsampled once the
-        # episode count exceeds the pixel width); `line` is the rolling average
-        # (or success rate) drawn as a connected line; `best` marks the best
-        # score as a dashed line.
+        # `points` are individual per-episode dots, downsampled to one
+        # vertical bar per pixel column once they outnumber the width;
+        # `line` is the rolling average (or success rate) drawn connected;
+        # `best` marks the best score as a dashed guideline.
         pygame.draw.rect(surf, CARD, rect, border_radius=10)
         surf.blit(self.f_small.render(title, True, TEXT), (rect.x + 12, rect.y + 9))
         # Legend badges, right-aligned.
@@ -303,7 +295,7 @@ class Renderer:
             anchor = {0: "topleft", 4: "topright"}.get(i, "midtop")
             surf.blit(t, t.get_rect(**{anchor: (x, plot.bottom + 5)}))
 
-        # x/y mapping helpers.
+        # X/Y mapping helpers.
         def sx(i):
             return plot.x + (plot.w * i / (n - 1) if n > 1 else plot.w / 2)
 
