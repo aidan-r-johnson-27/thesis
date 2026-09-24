@@ -93,4 +93,4 @@ Run `./run.sh --help` for the full list.
 | `--seed N`        | random            | Seed the environment RNG for reproducible runs     |
 
 > [!NOTE]
-> **This project's documentation has been generated or assisted by AI.** While it has been reviewed for accuracy, some edge cases, outdated dependencies, or minor errors may still exist. Please use with discretion.
+> **This project's documentation has been generated or assisted by AI.** While it has been reviewed for accuracy, some edge cases, outdated dependencies, or minor errors may still exist. Please read with discretion.
