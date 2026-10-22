@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field, fields
 
 @dataclass
 class EnvConfig:
-    n_agents: int = 256             # boids per world
+    n_agents: int = 60             # boids per world
     world_size: float = 64.0        # side of the square world, which wraps around at the edges
     dt: float = 0.1
     max_speed: float = 2.0
