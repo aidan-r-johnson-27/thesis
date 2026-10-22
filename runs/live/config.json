@@ -1,0 +1,52 @@
+{
+  "env": {
+    "n_agents": 256,
+    "world_size": 64.0,
+    "dt": 0.1,
+    "max_speed": 2.0,
+    "min_speed": 0.5,
+    "max_accel": 2.0,
+    "k_neighbors": 4,
+    "neighbor_radius": 4.0,
+    "max_steps": 200,
+    "n_predators": 16,
+    "predator_max_speed": 2.4,
+    "predator_max_accel": 3.0,
+    "catch_radius": 0.5,
+    "predator_cooldown": 20,
+    "confusion": 1.0,
+    "confusion_radius": 2.0,
+    "collision_radius": 0.25
+  },
+  "reward": {
+    "w_caught": 1.0,
+    "w_collision": 1.0,
+    "w_cohesion": 0.0,
+    "w_alignment": 0.0
+  },
+  "ppo": {
+    "lr": 0.0003,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_eps": 0.2,
+    "n_epochs": 4,
+    "minibatch_size": 4096,
+    "value_coef": 0.5,
+    "entropy_coef": 0.0,
+    "max_grad_norm": 0.5,
+    "hidden_size": 64,
+    "init_log_std": 0.0
+  },
+  "train": {
+    "seed": 0,
+    "total_env_steps": 400000,
+    "rollout_steps": 128,
+    "n_envs": 4,
+    "run_dir": "runs/live",
+    "checkpoint_every": 50
+  },
+  "eval": {
+    "n_episodes": 20,
+    "seed": 10000
+  }
+}
