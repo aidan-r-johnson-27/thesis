@@ -13,7 +13,7 @@ from boids_rl.env import BoidsEnv, clip_norm, to_body
 W_SEPARATION = 1.5
 W_ALIGNMENT = 1.0
 W_COHESION = 1.0
-SEPARATION_DIST = 1.0
+SEPARATION_DIST = 0.8
 
 
 def unit(vectors):
