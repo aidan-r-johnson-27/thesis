@@ -157,7 +157,7 @@ def check_checkpoint(checkpoint, obs_dim, path):
     saved_obs_dim = checkpoint["model"]["actor.0.weight"].shape[1]
     if saved_obs_dim != obs_dim:
         raise SystemExit(f"{path} expects {saved_obs_dim} observation inputs but the env now gives {obs_dim} "
-                         "(it predates the predator observations). Start a new run: --fresh, "
+                         "(observations changed since). Start a new run: --fresh, "
                          "or another --train.run_dir.")
     # same size inputs but they meant something else back when everything was in the world frame
     if checkpoint.get("frame") != FRAME:

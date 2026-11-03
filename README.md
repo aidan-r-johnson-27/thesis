@@ -94,5 +94,72 @@ Run `./run.sh --help` for the full list.
 | `--speed N`       | 1                 | Starting simulation speed                          |
 | `--seed N`        | random            | Seed the environment RNG for reproducible runs     |
 
+## Boids RL (`boids_rl/`)
+
+Boids learn to flock with PPO instead of following hand-coded rules. Every boid runs the same policy network, so all of them train it together.
+
+### Quick start
+
+```
+cd boids_rl
+./run.sh              # train live, with the world on the left and training charts on the right
+./run.sh --demo       # watch the current policy without learning
+./run.sh --fresh      # ignore the saved checkpoint and start over
+```
+
+`run.sh` creates `.venv` at the repo root, installs CPU-only `torch` and the packages in `boids_rl/requirements.txt`, then starts `python -m boids_rl.live`. The live run saves to `runs/live/` and resumes from its checkpoint next time.
+
+### The task
+
+- **World:** 64 boids in a 64×64 square that wraps at the edges. An episode lasts 200 steps.
+- **Observation:** a boid's own velocity plus the relative position and velocity of its 4 nearest neighbours within radius 4, all turned to face the boid's heading.
+- **Action:** a 2D acceleration, with speed kept between 0.5 and 2.0.
+- **Reward:** a weighted sum of the three Reynolds rules, each scored per step in [-1, 0] (`rewards.py`):
+  - separation (weight 1.5): penalty for neighbours closer than `separation_dist` = 1.0
+  - alignment (weight 1.0): how far a boid's heading is from its neighbours' headings
+  - cohesion (weight 1.0): distance to the centre of its visible neighbours
+
+  A boid that sees nobody scores -1 on alignment and cohesion.
+
+The earlier predator-survival task (scripted predators, the confusion effect, deaths on collision) is still in the code but commented out. Search for `predators (off)` to find it.
+
+### Modules
+
+Run these from the repo root with `.venv/bin/python -m boids_rl.<module>`:
+
+| Module           | Purpose                                                                   |
+| ---------------- | ------------------------------------------------------------------------- |
+| `live`           | Live training and demo window (what `run.sh` starts)                      |
+| `train`          | Headless training; `--resume` continues from `<run_dir>`                   |
+| `eval`           | Deterministic evaluation of a run: `eval <run_dir> [--out x.json] [--render x.gif]` |
+| `render`         | Save a GIF/MP4 of one episode: `render <run_dir> out.gif`                 |
+| `baselines`      | Flock metrics for scripted `reynolds` or `random` steering               |
+| `experiments`    | Every ablation × seed, plus summary tables and plots in `results/`       |
+| `sweep`          | Random search over task settings, scored against scripted Reynolds       |
+
+Supporting files: `env.py` (simulation and observations), `rewards.py`, `networks.py` (actor-critic MLP), `ppo.py` (rollout buffer, GAE, update) and `config.py`.
+
+Every setting in `config.py` is also a command-line flag of the form `--<section>.<field>`, e.g. `--env.n_agents 32` or `--reward.w_cohesion 0`. A run saves its config to `<run_dir>/config.json` and saves checkpoints every 50 PPO updates.
+
+> [!NOTE]
+> `sweep.py` still searches only `collision_radius` and `w_collision`, and collisions are off in the current task. Give it a new search space before running it.
+
+### Live controls
+
+| Key | Action |
+| --- | --- |
+| SPACE | pause |
+| ↑ / → / + | speed up (1x … 128x, max) |
+| ↓ / ← / − | speed down |
+| V | turn the world view off/on (off trains at full speed) |
+| D | switch between demo and training |
+| E | show the next training env |
+| C | colour boids by reward |
+| N | show/hide boid 0's view radius and lines to the neighbours it sees |
+| T | turn trails on/off |
+| S | save a checkpoint |
+| R | reset training |
+| ESC / Q | quit and save |
+
 > [!NOTE]
 > **This project's documentation has been generated or assisted by AI.** While it has been reviewed for accuracy, some edge cases, outdated dependencies, or minor errors may still exist. Please read with discretion.

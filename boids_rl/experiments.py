@@ -18,7 +18,8 @@ from boids_rl.train import train
 # every ablation x seed is just a normal training run; finished runs (eval.json exists) get
 # skipped and half-done ones resumed, so re-running the same command picks up where it left off
 
-METRICS = (["polarization", "mean_nn_distance", "caught_per_episode", "collisions_per_episode", "mean_return"]
+METRICS = (["polarization", "mean_nn_distance", "collisions_per_episode", "mean_return"]
+           # predators (off): "caught_per_episode"
            + [f"term_{name}" for name in REWARD_TERMS])
 
 # one fixed colour per ablation

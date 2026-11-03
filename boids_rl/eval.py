@@ -26,7 +26,8 @@ def evaluate(model, cfg):
     set_seed(cfg.eval.seed)
     env = BoidsEnv(cfg.env, cfg.reward, seed=cfg.eval.seed, auto_reset=False)
     returns, polarizations, nn_dists = [], [], []
-    caught, collided = [], []
+    collided = []
+    # caught = []
     term_values = {name: [] for name in REWARD_TERMS}
 
     for _ in range(cfg.eval.n_episodes):
@@ -38,7 +39,7 @@ def evaluate(model, cfg):
             polarizations.append(polarization(env.vel))
             nn_dists.append(mean_nn_distance(env.data))
         returns.append(episode_return.mean())
-        caught.append(env.deaths["caught"])
+        # caught.append(env.deaths["caught"])
         collided.append(env.deaths["collided"])
 
     results = {
@@ -48,7 +49,7 @@ def evaluate(model, cfg):
         "std_return": float(np.std(returns)),
         "polarization": float(np.mean(polarizations)),
         "mean_nn_distance": float(np.mean(nn_dists)),
-        "caught_per_episode": float(np.mean(caught)),
+        # "caught_per_episode": float(np.mean(caught)),
         "collisions_per_episode": float(np.mean(collided)),
     }
     for name, values in term_values.items():

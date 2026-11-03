@@ -35,8 +35,10 @@ def to_world(vectors, heading):
 
 
 def obs_dim(env_cfg):
-    # own velocity (2) + k neighbours * (rel pos, rel vel) (4 each) + predator pos, vel, visible (5)
-    return 2 + 4 * env_cfg.k_neighbors + 5
+    # own velocity (2) + k neighbours * (rel pos, rel vel) (4 each)
+    return 2 + 4 * env_cfg.k_neighbors
+    # predators (off): + predator pos, vel, visible (5)
+    # return 2 + 4 * env_cfg.k_neighbors + 5
 
 
 @dataclass
@@ -49,16 +51,19 @@ class StepData:
     mask: np.ndarray                 # (N, k) True where that neighbour is inside neighbor_radius
     neighbor_radius: float
     world_size: float
-    pred_rel_pos: np.ndarray = None  # (N, 2) nearest predator, zero if not visible
-    pred_rel_vel: np.ndarray = None  # (N, 2)
-    pred_dist: np.ndarray = None     # (N,) inf if there are no predators
-    pred_mask: np.ndarray = None     # (N,) True where the nearest predator is visible
-    caught: np.ndarray = None        # (N,) caught by a predator this step
+    # predators (off)
+    # pred_rel_pos: np.ndarray = None  # (N, 2) nearest predator, zero if not visible
+    # pred_rel_vel: np.ndarray = None  # (N, 2)
+    # pred_dist: np.ndarray = None     # (N,) inf if there are no predators
+    # pred_mask: np.ndarray = None     # (N,) True where the nearest predator is visible
+    # caught: np.ndarray = None        # (N,) caught by a predator this step
     collided: np.ndarray = None      # (N,) hit another boid this step
     all_dists: np.ndarray = None     # (N, N) every pairwise distance, inf on the diagonal
 
 
-def compute_step_data(pos, vel, cfg, pred_pos=None, pred_vel=None):
+def compute_step_data(pos, vel, cfg):
+# predators (off)
+# def compute_step_data(pos, vel, cfg, pred_pos=None, pred_vel=None):
     n_boids, k = len(pos), cfg.k_neighbors
     size = cfg.world_size
 
@@ -89,28 +94,30 @@ def compute_step_data(pos, vel, cfg, pred_pos=None, pred_vel=None):
     rel_pos[~mask] = 0.0
     rel_vel[~mask] = 0.0
 
-    pred_rel_pos = np.zeros((n_boids, 2))
-    pred_rel_vel = np.zeros((n_boids, 2))
-    pred_dist = np.full(n_boids, np.inf)
-    if pred_pos is not None and len(pred_pos) > 0:
-        pred_offsets = wrap(pred_pos[None, :, :] - pos[:, None, :], size)
-        pred_dists = np.linalg.norm(pred_offsets, axis=-1)
-        closest = pred_dists.argmin(axis=1)
-        boids = np.arange(n_boids)
-        pred_dist = pred_dists[boids, closest]
-        pred_rel_pos = pred_offsets[boids, closest]
-        pred_rel_vel = pred_vel[closest] - vel
-
-    # predators are seen with the same radius as neighbours
-    pred_mask = pred_dist < cfg.neighbor_radius
-    pred_rel_pos[~pred_mask] = 0.0
-    pred_rel_vel[~pred_mask] = 0.0
+    # predators (off)
+    # pred_rel_pos = np.zeros((n_boids, 2))
+    # pred_rel_vel = np.zeros((n_boids, 2))
+    # pred_dist = np.full(n_boids, np.inf)
+    # if pred_pos is not None and len(pred_pos) > 0:
+    #     pred_offsets = wrap(pred_pos[None, :, :] - pos[:, None, :], size)
+    #     pred_dists = np.linalg.norm(pred_offsets, axis=-1)
+    #     closest = pred_dists.argmin(axis=1)
+    #     boids = np.arange(n_boids)
+    #     pred_dist = pred_dists[boids, closest]
+    #     pred_rel_pos = pred_offsets[boids, closest]
+    #     pred_rel_vel = pred_vel[closest] - vel
+    #
+    # # predators are seen with the same radius as neighbours
+    # pred_mask = pred_dist < cfg.neighbor_radius
+    # pred_rel_pos[~pred_mask] = 0.0
+    # pred_rel_vel[~pred_mask] = 0.0
 
     return StepData(vel=vel.copy(), rel_pos=rel_pos, rel_vel=rel_vel, dist=dist, mask=mask,
                     neighbor_radius=cfg.neighbor_radius, world_size=size,
-                    pred_rel_pos=pred_rel_pos, pred_rel_vel=pred_rel_vel,
-                    pred_dist=pred_dist, pred_mask=pred_mask,
-                    caught=np.zeros(n_boids, bool), collided=np.zeros(n_boids, bool),
+                    # pred_rel_pos=pred_rel_pos, pred_rel_vel=pred_rel_vel,
+                    # pred_dist=pred_dist, pred_mask=pred_mask,
+                    # caught=np.zeros(n_boids, bool),
+                    collided=np.zeros(n_boids, bool),
                     all_dists=all_dists)
 
 
@@ -181,19 +188,23 @@ class BoidsEnv:
         self.heading = np.where(speed > 1e-8, self.vel / np.maximum(speed, 1e-8), self.heading)
 
     def _step_data(self):
-        return compute_step_data(self.pos, self.vel, self.cfg, self.pred_pos, self.pred_vel)
+        return compute_step_data(self.pos, self.vel, self.cfg)
+        # predators (off)
+        # return compute_step_data(self.pos, self.vel, self.cfg, self.pred_pos, self.pred_vel)
 
     def reset(self):
         cfg = self.cfg
         self.pos, self.vel = self._random_boids(cfg.n_agents)
-        self.pred_pos = self.rng.uniform(0, cfg.world_size, (cfg.n_predators, 2))
-        self.pred_vel = np.zeros_like(self.pred_pos)
-        # predators start on cooldown, which gives the boids a grace period
-        self.pred_cooldown = np.full(cfg.n_predators, cfg.predator_cooldown)
+        # predators (off)
+        # self.pred_pos = self.rng.uniform(0, cfg.world_size, (cfg.n_predators, 2))
+        # self.pred_vel = np.zeros_like(self.pred_pos)
+        # # predators start on cooldown, which gives the boids a grace period
+        # self.pred_cooldown = np.full(cfg.n_predators, cfg.predator_cooldown)
         self.heading = np.tile([1.0, 0.0], (cfg.n_agents, 1))
         self._update_heading()
         self.t = 0
-        self.deaths = {"caught": 0, "collided": 0}
+        self.deaths = {"collided": 0}
+        # self.deaths = {"caught": 0, "collided": 0}
         self.last_deaths = np.zeros((0, 2))
         self.data = self._step_data()
         return self._get_obs()
@@ -201,18 +212,20 @@ class BoidsEnv:
     def get_state(self):
         # enough to carry on exactly where we left off (goes into checkpoints)
         return {"pos": self.pos.copy(), "vel": self.vel.copy(), "heading": self.heading.copy(),
-                "t": self.t, "pred_pos": self.pred_pos.copy(), "pred_vel": self.pred_vel.copy(),
-                "pred_cooldown": self.pred_cooldown.copy(), "deaths": dict(self.deaths),
-                "rng": self.rng.bit_generator.state}
+                "t": self.t, "deaths": dict(self.deaths), "rng": self.rng.bit_generator.state}
+                # predators (off)
+                # "pred_pos": self.pred_pos.copy(), "pred_vel": self.pred_vel.copy(),
+                # "pred_cooldown": self.pred_cooldown.copy(),
 
     def set_state(self, state):
         self.pos = np.array(state["pos"])
         self.vel = np.array(state["vel"])
         self.heading = np.array(state["heading"])
         self.t = state["t"]
-        self.pred_pos = np.array(state["pred_pos"])
-        self.pred_vel = np.array(state["pred_vel"])
-        self.pred_cooldown = np.array(state["pred_cooldown"])
+        # predators (off)
+        # self.pred_pos = np.array(state["pred_pos"])
+        # self.pred_vel = np.array(state["pred_vel"])
+        # self.pred_cooldown = np.array(state["pred_cooldown"])
         self.deaths = {kind: int(count) for kind, count in state["deaths"].items()}
         self.last_deaths = np.zeros((0, 2))
         self.rng.bit_generator.state = state["rng"]
@@ -227,60 +240,63 @@ class BoidsEnv:
         nbr_vel = to_body(data.rel_vel, heading) / (2 * cfg.max_speed)
         # one block of 4 numbers per neighbour slot: (pos fwd, pos left, vel fwd, vel left)
         neighbours = np.concatenate([nbr_pos, nbr_vel], axis=-1).reshape(len(heading), -1)
-        pred_pos = to_body(data.pred_rel_pos, heading) / cfg.neighbor_radius
-        pred_vel = to_body(data.pred_rel_vel, heading) / (cfg.max_speed + cfg.predator_max_speed)
-        pred_visible = data.pred_mask[:, None]
-        obs = np.concatenate([own_vel, neighbours, pred_pos, pred_vel, pred_visible], axis=1)
+        obs = np.concatenate([own_vel, neighbours], axis=1)
+        # predators (off)
+        # pred_pos = to_body(data.pred_rel_pos, heading) / cfg.neighbor_radius
+        # pred_vel = to_body(data.pred_rel_vel, heading) / (cfg.max_speed + cfg.predator_max_speed)
+        # pred_visible = data.pred_mask[:, None]
+        # obs = np.concatenate([own_vel, neighbours, pred_pos, pred_vel, pred_visible], axis=1)
         return obs.astype(np.float32)
 
-    def _move_predators(self):
-        cfg = self.cfg
-        # offsets[p, i] is where boid i is relative to predator p
-        offsets = wrap(self.pos[None, :, :] - self.pred_pos[:, None, :], cfg.world_size)
-        dists = np.linalg.norm(offsets, axis=-1)
-        targets = dists.argmin(axis=1)
-        preds = np.arange(len(self.pred_pos))
-
-        # steer straight at the nearest boid at full speed
-        direction = offsets[preds, targets] / np.maximum(dists[preds, targets], 1e-8)[:, None]
-        desired_vel = direction * cfg.predator_max_speed
-        accel = clip_norm((desired_vel - self.pred_vel) / cfg.dt, cfg.predator_max_accel)
-        self.pred_vel = clip_norm(self.pred_vel + accel * cfg.dt, cfg.predator_max_speed)
-        self.pred_pos = (self.pred_pos + self.pred_vel * cfg.dt) % cfg.world_size
-
-        # the predator has moved, so measure the distance to its target again
-        target_offsets = wrap(self.pos[targets] - self.pred_pos, cfg.world_size)
-        return targets, np.linalg.norm(target_offsets, axis=-1)
-
-    def _attack(self, targets, target_dists):
-        cfg = self.cfg
-        caught = np.zeros(self.n_agents, bool)
-        self.pred_cooldown = np.maximum(self.pred_cooldown - 1, 0)
-        ready = (self.pred_cooldown == 0) & (target_dists < cfg.catch_radius)
-        for p in np.flatnonzero(ready):
-            target = targets[p]
-            dists_to_target = np.linalg.norm(wrap(self.pos - self.pos[target], cfg.world_size), axis=1)
-            # confusion effect: the more boids crowd the target, the more likely the attack misses
-            n_crowd = np.sum(dists_to_target < cfg.confusion_radius) - 1
-            if self.rng.random() < 1.0 / (1.0 + cfg.confusion * n_crowd):
-                caught[target] = True
-            # hit or miss, the predator has to wait before attacking again
-            self.pred_cooldown[p] = cfg.predator_cooldown
-        return caught
+    # predators (off)
+    # def _move_predators(self):
+    #     cfg = self.cfg
+    #     # offsets[p, i] is where boid i is relative to predator p
+    #     offsets = wrap(self.pos[None, :, :] - self.pred_pos[:, None, :], cfg.world_size)
+    #     dists = np.linalg.norm(offsets, axis=-1)
+    #     targets = dists.argmin(axis=1)
+    #     preds = np.arange(len(self.pred_pos))
+    #
+    #     # steer straight at the nearest boid at full speed
+    #     direction = offsets[preds, targets] / np.maximum(dists[preds, targets], 1e-8)[:, None]
+    #     desired_vel = direction * cfg.predator_max_speed
+    #     accel = clip_norm((desired_vel - self.pred_vel) / cfg.dt, cfg.predator_max_accel)
+    #     self.pred_vel = clip_norm(self.pred_vel + accel * cfg.dt, cfg.predator_max_speed)
+    #     self.pred_pos = (self.pred_pos + self.pred_vel * cfg.dt) % cfg.world_size
+    #
+    #     # the predator has moved, so measure the distance to its target again
+    #     target_offsets = wrap(self.pos[targets] - self.pred_pos, cfg.world_size)
+    #     return targets, np.linalg.norm(target_offsets, axis=-1)
+    #
+    # def _attack(self, targets, target_dists):
+    #     cfg = self.cfg
+    #     caught = np.zeros(self.n_agents, bool)
+    #     self.pred_cooldown = np.maximum(self.pred_cooldown - 1, 0)
+    #     ready = (self.pred_cooldown == 0) & (target_dists < cfg.catch_radius)
+    #     for p in np.flatnonzero(ready):
+    #         target = targets[p]
+    #         dists_to_target = np.linalg.norm(wrap(self.pos - self.pos[target], cfg.world_size), axis=1)
+    #         # confusion effect: the more boids crowd the target, the more likely the attack misses
+    #         n_crowd = np.sum(dists_to_target < cfg.confusion_radius) - 1
+    #         if self.rng.random() < 1.0 / (1.0 + cfg.confusion * n_crowd):
+    #             caught[target] = True
+    #         # hit or miss, the predator has to wait before attacking again
+    #         self.pred_cooldown[p] = cfg.predator_cooldown
+    #     return caught
 
     def _respawn(self, dead):
         cfg = self.cfg
         idx = np.flatnonzero(dead)
         self.pos[idx], self.vel[idx] = self._random_boids(len(idx))
-        # re-roll any spawn that a predator could see (give up after 20 tries)
-        if cfg.n_predators > 0:
-            for _ in range(20):
-                offsets = wrap(self.pred_pos[None, :, :] - self.pos[idx, None, :], cfg.world_size)
-                seen = (np.linalg.norm(offsets, axis=-1) < cfg.neighbor_radius).any(axis=1)
-                bad = idx[seen]
-                if len(bad) == 0:
-                    break
-                self.pos[bad] = self.rng.uniform(0, cfg.world_size, (len(bad), 2))
+        # predators (off): re-roll any spawn that a predator could see (give up after 20 tries)
+        # if cfg.n_predators > 0:
+        #     for _ in range(20):
+        #         offsets = wrap(self.pred_pos[None, :, :] - self.pos[idx, None, :], cfg.world_size)
+        #         seen = (np.linalg.norm(offsets, axis=-1) < cfg.neighbor_radius).any(axis=1)
+        #         bad = idx[seen]
+        #         if len(bad) == 0:
+        #             break
+        #         self.pos[bad] = self.rng.uniform(0, cfg.world_size, (len(bad), 2))
         self._update_heading()
 
     def step(self, actions):
@@ -299,20 +315,22 @@ class BoidsEnv:
         self._update_heading()
         self.pos = (self.pos + self.vel * cfg.dt) % cfg.world_size
 
-        if cfg.n_predators > 0:
-            targets, target_dists = self._move_predators()
-            caught = self._attack(targets, target_dists)
-        else:
-            caught = np.zeros(self.n_agents, bool)
+        # predators (off)
+        # if cfg.n_predators > 0:
+        #     targets, target_dists = self._move_predators()
+        #     caught = self._attack(targets, target_dists)
+        # else:
+        #     caught = np.zeros(self.n_agents, bool)
         self.t += 1
 
         self.data = self._step_data()
-        self.data.caught = caught
+        # self.data.caught = caught
         self.data.collided = self.data.dist[:, 0] < cfg.collision_radius
         reward, terms = compute_rewards(self.data, self.reward_cfg)
 
-        dead = caught | self.data.collided
-        self.deaths["caught"] += int(caught.sum())
+        dead = self.data.collided
+        # dead = caught | self.data.collided
+        # self.deaths["caught"] += int(caught.sum())
         self.deaths["collided"] += int(self.data.collided.sum())
         self.last_deaths = self.pos[dead]
         if dead.any():

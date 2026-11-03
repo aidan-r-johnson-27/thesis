@@ -59,18 +59,19 @@ def evaluate_policy(policy, cfg, n_episodes=None, skip=50):
     env = BoidsEnv(cfg.env, cfg.reward, seed=cfg.eval.seed, auto_reset=False)
     if n_episodes is None:
         n_episodes = cfg.eval.n_episodes
-    metrics, caught, collided = [], [], []
+    metrics, collided = [], []
+    # caught = []
     for _ in range(n_episodes):
         env.reset()
         for t in range(cfg.env.max_steps):
             env.step(to_body(policy(env), env.heading))
             if t >= skip:
                 metrics.append(env.flock_metrics())
-        caught.append(env.deaths["caught"])
+        # caught.append(env.deaths["caught"])
         collided.append(env.deaths["collided"])
 
     results = {name: float(np.mean([m[name] for m in metrics])) for name in metrics[0]}
-    results["caught_per_episode"] = float(np.mean(caught))
+    # results["caught_per_episode"] = float(np.mean(caught))
     results["collisions_per_episode"] = float(np.mean(collided))
     return results
 

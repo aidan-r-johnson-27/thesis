@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field, fields
 
 @dataclass
 class EnvConfig:
-    n_agents: int = 60             # boids per world
+    n_agents: int = 64             # boids per world
     world_size: float = 64.0        # side of the square world, which wraps around at the edges
     dt: float = 0.1
     max_speed: float = 2.0
@@ -17,28 +17,30 @@ class EnvConfig:
     neighbor_radius: float = 4.0    # how far a boid can see
     max_steps: int = 200            # world episode length, then it's cut off
 
-    # predators are scripted, not learned: each one chases the nearest boid
-    n_predators: int = 16           # one per 16 boids at the default flock size
-    predator_max_speed: float = 2.4  # faster than a boid, so a lone boid can't just outrun it
-    predator_max_accel: float = 3.0
-    catch_radius: float = 0.5        # attacks once its target is this close
-    predator_cooldown: int = 20      # steps it waits after every attack, hit or miss
-    # confusion effect: an attack hits with probability 1 / (1 + confusion * m), where m is how
-    # many other boids are within confusion_radius of the target; 0 turns it off
-    confusion: float = 1.0
-    confusion_radius: float = 2.0
+    # # predators are scripted, not learned: each one chases the nearest boid
+    # n_predators: int = 16           # one per 16 boids at the default flock size
+    # predator_max_speed: float = 2.4  # faster than a boid, so a lone boid can't just outrun it
+    # predator_max_accel: float = 3.0
+    # catch_radius: float = 0.5        # attacks once its target is this close
+    # predator_cooldown: int = 20      # steps it waits after every attack, hit or miss
+    # # confusion effect: an attack hits with probability 1 / (1 + confusion * m), where m is how
+    # # many other boids are within confusion_radius of the target; 0 turns it off
+    # confusion: float = 1.0
+    # confusion_radius: float = 2.0
 
-    collision_radius: float = 0.25  # two boids closer than this both die; 0 turns collisions off
+    collision_radius: float = 0.0   # two boids closer than this both die; 0 turns collisions off
 
 
 @dataclass
 class RewardConfig:
     # reward = sum of w_<term> * term (the terms are in rewards.py); a weight of 0 removes that term
-    # the default task is just survival, cohesion/alignment are only for the "reynolds" ablation
-    w_caught: float = 1.0
-    w_collision: float = 1.0
-    w_cohesion: float = 0.0
-    w_alignment: float = 0.0
+    # the default task is Reynolds boids: separation, alignment, cohesion
+    # w_caught: float = 1.0
+    w_collision: float = 0.0
+    w_separation: float = 1.5
+    w_alignment: float = 1.0
+    w_cohesion: float = 1.0
+    separation_dist: float = 1.0    # neighbours closer than this cost separation reward
 
 
 @dataclass
@@ -109,7 +111,8 @@ class ExperimentConfig:
     # settings for experiments.py
     name: str = "ablation"          # results go to <results_dir>/<name>/
     results_dir: str = "results"
-    ablations: tuple = ("survival", "no_confusion", "no_predator", "no_collisions", "reynolds")
+    ablations: tuple = ("reynolds",)
+    # ablations: tuple = ("survival", "no_confusion", "no_predator", "no_collisions", "reynolds")
     seeds: tuple = (0, 1, 2)
     workers: int = 1                # runs trained in parallel
     eval_flock_sizes: tuple = (8, 32, 64)  # extra evals at other flock sizes, to test generalization
@@ -117,13 +120,14 @@ class ExperimentConfig:
 
 # each ablation changes a few "<section>.<field>" settings and leaves the rest as the base config
 ABLATIONS = {
-    "survival": {},
-    "no_confusion": {"env.confusion": 0.0},
-    "no_predator": {"env.n_predators": 0},
-    "no_collisions": {"env.collision_radius": 0.0},
-    # the original setup: no predator, no deaths, reward is cohesion + alignment
-    "reynolds": {"env.n_predators": 0, "env.collision_radius": 0.0, "reward.w_caught": 0.0,
-                 "reward.w_collision": 0.0, "reward.w_cohesion": 0.5, "reward.w_alignment": 0.5},
+    "reynolds": {},
+    # predators (off): the old survival task and its ablations
+    # "survival": {"env.n_predators": 16, "env.collision_radius": 0.25, "reward.w_caught": 1.0,
+    #              "reward.w_collision": 1.0, "reward.w_separation": 0.0, "reward.w_cohesion": 0.0,
+    #              "reward.w_alignment": 0.0},
+    # "no_confusion": {**survival, "env.confusion": 0.0},
+    # "no_predator": {**survival, "env.n_predators": 0},
+    # "no_collisions": {**survival, "env.collision_radius": 0.0},
 }
 
 

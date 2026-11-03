@@ -23,8 +23,9 @@ TEXT = (214, 214, 214)
 BRIGHT = (250, 250, 250)
 
 # (grey, dash) per reward term, dash is (pixels on, pixels off) or None for a solid line
-TERM_STYLES = {"caught": (TEXT, (6, 4)), "collision": (DIM, (1, 3)),
+TERM_STYLES = {"collision": (DIM, (1, 3)), "separation": (TEXT, (6, 4)),
                "cohesion": (MID, None), "alignment": (BRIGHT, None)}
+# predators (off): "caught": (TEXT, (6, 4))
 
 MONO_FONTS = ("jetbrainsmono", "jetbrainsmononerdfontmono", "dejavusansmono", "liberationmono",
               "menlo", "consolas", "couriernew")
@@ -251,7 +252,7 @@ class Renderer:
         if info["show_focus"]:
             self._brackets(xs[0], ys[0], 11)
 
-        self._draw_predators(env)
+        self._draw_deaths(env)
         self._draw_hud(env, info, headings)
         screen.set_clip(None)
 
@@ -293,7 +294,7 @@ class Renderer:
                 pygame.draw.line(self.screen, BRIGHT, (cx, cy), (cx - dx * 4, cy))
                 pygame.draw.line(self.screen, BRIGHT, (cx, cy), (cx, cy - dy * 4))
 
-    def _draw_predators(self, env):
+    def _draw_deaths(self, env):
         screen = self.screen
 
         # deaths leave a fading cross (only deaths on steps that actually got drawn)
@@ -310,16 +311,16 @@ class Renderer:
             mark[2] -= 1
         self.death_marks = [mark for mark in self.death_marks if mark[2] > 0]
 
-        # a bigger hollow triangle with its catch radius, dimmed while on cooldown
-        xs, ys = self.to_screen(env.pred_pos)
-        for i in range(len(env.pred_pos)):
-            ready = env.pred_cooldown[i] == 0
-            catch_r = env.cfg.catch_radius * self.scale
-            pygame.draw.circle(screen, LINE if ready else FAINT, (xs[i], ys[i]), catch_r, 1)
-            angle = math.atan2(env.pred_vel[i, 1], env.pred_vel[i, 0])
-            points = arrow_points(xs[i], ys[i], angle, 16, 9)
-            pygame.draw.polygon(screen, BG, points)
-            pygame.draw.polygon(screen, BRIGHT if ready else DIM, points, 2)
+        # predators (off): a bigger hollow triangle with its catch radius, dimmed while on cooldown
+        # xs, ys = self.to_screen(env.pred_pos)
+        # for i in range(len(env.pred_pos)):
+        #     ready = env.pred_cooldown[i] == 0
+        #     catch_r = env.cfg.catch_radius * self.scale
+        #     pygame.draw.circle(screen, LINE if ready else FAINT, (xs[i], ys[i]), catch_r, 1)
+        #     angle = math.atan2(env.pred_vel[i, 1], env.pred_vel[i, 0])
+        #     points = arrow_points(xs[i], ys[i], angle, 16, 9)
+        #     pygame.draw.polygon(screen, BG, points)
+        #     pygame.draw.polygon(screen, BRIGHT if ready else DIM, points, 2)
 
     def _draw_hud(self, env, info, headings):
         screen = self.screen
@@ -331,7 +332,8 @@ class Renderer:
                 ("", text_bar(env.t / env.cfg.max_steps, 22)),
                 ("polarization", f"{metrics['polarization']:.2f}"),
                 ("nearest nbr", f"{metrics['nn_distance']:.2f}"),
-                ("caught/collided", f"{env.deaths['caught']}/{env.deaths['collided']}"),
+                ("collided", f"{env.deaths['collided']}"),
+                # ("caught/collided", f"{env.deaths['caught']}/{env.deaths['collided']}"),
                 ("return so far", f"{info['episode_return']:.1f}"),
                 ("shade [c]", info["color_mode"])]
         box = pygame.Rect(10, 0, 24 * self.char_w + 20, self.line_h * len(rows) + 18)

@@ -24,10 +24,11 @@ SCORE_METRICS = ("polarization", "nn_distance", "n_visible", "largest_group")
 
 # the values to pick from for each "<section>.<field>"
 SEARCH_SPACE = {
-    "env.n_predators": [1, 2, 3],
-    "env.predator_cooldown": [10, 20],
-    "env.confusion": [1.0, 3.0],
-    "env.confusion_radius": [2.0, 3.0, 4.0],
+    # predators (off)
+    # "env.n_predators": [1, 2, 3],
+    # "env.predator_cooldown": [10, 20],
+    # "env.confusion": [1.0, 3.0],
+    # "env.confusion_radius": [2.0, 3.0, 4.0],
     "env.collision_radius": [0.1, 0.25],
     "reward.w_collision": [0.3, 1.0],
 }
@@ -46,7 +47,9 @@ def sample_configs(sweep):
     rng = np.random.default_rng(sweep.seed)
     seen = set()
     samples = []
-    while len(samples) < sweep.n_configs:
+    # can't ask for more unique configs than the space holds
+    n_configs = min(sweep.n_configs, int(np.prod([len(options) for options in SEARCH_SPACE.values()])))
+    while len(samples) < n_configs:
         sample = {key: options[rng.integers(len(options))] for key, options in SEARCH_SPACE.items()}
         key = tuple(sample.values())
         if key not in seen:
@@ -78,7 +81,8 @@ def run_one(cfg, overrides):
 
 def reference(base):
     # scripted Reynolds and random boids in a plain world: the two ends of the score
-    plain = apply_overrides(copy.deepcopy(base), {"env.n_predators": 0, "env.collision_radius": 0.0})
+    plain = apply_overrides(copy.deepcopy(base), {"env.collision_radius": 0.0})
+    # plain = apply_overrides(copy.deepcopy(base), {"env.n_predators": 0, "env.collision_radius": 0.0})
     return {"reynolds": evaluate_policy(reynolds, plain), "random": evaluate_policy(random_policy, plain)}
 
 
@@ -131,7 +135,8 @@ def summarize(out_dir):
         writer.writerows(rows)
 
     setting_names = [key.split(".")[1] for key in SEARCH_SPACE]
-    metric_names = [*SCORE_METRICS, "caught_per_episode", "collisions_per_episode"]
+    metric_names = [*SCORE_METRICS, "collisions_per_episode"]
+    # metric_names = [*SCORE_METRICS, "caught_per_episode", "collisions_per_episode"]
     shown = ["run", "score", *setting_names, *metric_names]
     lines = ["| " + " | ".join(shown) + " |", "|---" * len(shown) + "|"]
     for name, result in (("REYNOLDS (scripted)", ref["reynolds"]), ("random (scripted)", ref["random"])):
