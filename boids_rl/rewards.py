@@ -24,19 +24,24 @@ def separation(data, cfg):
 
 
 def alignment(data, cfg):
-    # average of (cos - 1) / 2 between my heading and each visible neighbour's, -1 if I see nobody
+    # average of (cos - 1) / 2 between my heading and each visible neighbour's
+    # seeing nobody scores -0.5, what a randomly headed neighbour scores on average, so a neighbour
+    # coming into view doesn't pay by itself (finding neighbours is cohesion's job)
     n_visible = data.mask.sum(axis=1)
     neighbour_vel = data.rel_vel + data.vel[:, None, :]
     cosines = (unit(neighbour_vel) * unit(data.vel)[:, None, :]).sum(axis=-1)
     scores = np.where(data.mask, (cosines - 1) / 2, 0.0)
-    return np.where(n_visible > 0, scores.sum(axis=1) / np.maximum(n_visible, 1), -1.0)
+    return np.where(n_visible > 0, scores.sum(axis=1) / np.maximum(n_visible, 1), -0.5)
 
 
 def cohesion(data, cfg):
-    # minus the distance to the middle of my visible neighbours, scaled into [-1, 0], -1 if I see nobody
+    # how far the middle of my visible neighbours is past separation_dist, scaled into [-1, 0],
+    # -1 if I see nobody; no pull inside separation_dist, so cohesion and separation both want
+    # neighbours at separation_dist instead of fighting to an in-between spacing
     n_visible = data.mask.sum(axis=1)
     centre = data.rel_pos.sum(axis=1) / np.maximum(n_visible, 1)[:, None]
-    reward = -np.linalg.norm(centre, axis=1) / data.neighbor_radius
+    slack = max(data.neighbor_radius - cfg.separation_dist, 1e-8)
+    reward = -np.clip((np.linalg.norm(centre, axis=1) - cfg.separation_dist) / slack, 0.0, 1.0)
     return np.where(n_visible > 0, reward, -1.0)
 
 

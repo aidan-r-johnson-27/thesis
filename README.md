@@ -111,15 +111,15 @@ cd boids_rl
 
 ### The task
 
-- **World:** 64 boids in a 64×64 square that wraps at the edges. An episode lasts 200 steps.
-- **Observation:** a boid's own velocity plus the relative position and velocity of its 4 nearest neighbours within radius 4, all turned to face the boid's heading.
-- **Action:** a 2D acceleration, with speed kept between 0.5 and 2.0.
+- **World:** 64 boids in a 64×64 square that wraps at the edges. An episode lasts 200 steps. During training the worlds' clocks are staggered, so they don't all restart on the same step.
+- **Observation:** a boid's own velocity plus the relative position, relative velocity and a visible flag for each of its 4 nearest neighbours within radius 4, all turned to face the boid's heading.
+- **Action:** a 2D acceleration (the policy's mean is bounded to ±2, the acceleration limit), with speed kept between 0.5 and 2.0.
 - **Reward:** a weighted sum of the three Reynolds rules, each scored per step in [-1, 0] (`rewards.py`):
   - separation (weight 1.5): penalty for neighbours closer than `separation_dist` = 1.0
   - alignment (weight 1.0): how far a boid's heading is from its neighbours' headings
-  - cohesion (weight 1.0): distance to the centre of its visible neighbours
+  - cohesion (weight 1.0): how far the centre of its visible neighbours is beyond `separation_dist`
 
-  A boid that sees nobody scores -1 on alignment and cohesion.
+  A boid that sees nobody scores -0.5 on alignment (what a randomly headed neighbour scores on average) and -1 on cohesion.
 
 The earlier predator-survival task (scripted predators, the confusion effect, deaths on collision) is still in the code but commented out. Search for `predators (off)` to find it.
 

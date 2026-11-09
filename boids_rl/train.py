@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from boids_rl.config import Config, add_config_args, apply_config_args
-from boids_rl.env import VecBoidsEnv
+from boids_rl.env import VecBoidsEnv, obs_dim
 from boids_rl.networks import ActorCritic
 from boids_rl.ppo import RolloutBuffer, compute_gae, ppo_update
 from boids_rl.rewards import REWARD_TERMS
@@ -24,8 +24,11 @@ class EpisodeTracker:
     # a column holds every boid that lived in that slot, so under the survival reward
     # its return is just minus the number of deaths in it
 
-    def __init__(self, n_columns):
+    def __init__(self, n_columns, n_envs):
         self.running = np.zeros(n_columns)
+        # worlds whose clock started part way through (staggered starts) are skipped once,
+        # since their first episode is shorter than max_steps and its return isn't comparable
+        self.partial = np.zeros(n_envs, bool)
         self.finished = []
 
     def add(self, reward, world_end, n_agents):
@@ -35,8 +38,9 @@ class EpisodeTracker:
             # so log one mean return per env that just finished
             per_env = self.running.reshape(-1, n_agents)
             env_ended = world_end.reshape(-1, n_agents)[:, 0]
-            for env_return in per_env[env_ended].mean(axis=1):
+            for env_return in per_env[env_ended & ~self.partial].mean(axis=1):
                 self.finished.append(float(env_return))
+            self.partial[env_ended] = False
             self.running[world_end] = 0.0
 
     def pop(self):
@@ -131,8 +135,9 @@ class CSVLogger:
             csv.DictWriter(f, fieldnames=CSV_FIELDS).writerow(row)
 
 
-# saved in checkpoints so an old world-frame policy never gets run in the body frame
-FRAME = "body"
+# saved in checkpoints so a policy from an older observation layout or network never gets loaded
+# (v2: neighbour visibility flags in the observation, tanh-bounded action mean)
+FRAME = "body-v2"
 
 
 def save_checkpoint(path, update, model, optimizer, env, obs, tracker, shuffle_rng):
@@ -144,6 +149,7 @@ def save_checkpoint(path, update, model, optimizer, env, obs, tracker, shuffle_r
         "env_state": env.get_state(),
         "obs": obs,
         "tracker_running": tracker.running,
+        "tracker_partial": tracker.partial,
         "shuffle_rng": shuffle_rng.bit_generator.state,
         "torch_rng": torch.get_rng_state(),
         "numpy_rng": np.random.get_state(),
@@ -159,16 +165,21 @@ def check_checkpoint(checkpoint, obs_dim, path):
         raise SystemExit(f"{path} expects {saved_obs_dim} observation inputs but the env now gives {obs_dim} "
                          "(observations changed since). Start a new run: --fresh, "
                          "or another --train.run_dir.")
-    # same size inputs but they meant something else back when everything was in the world frame
+    # same size inputs can still mean something else (world frame, no visibility flags, unbounded mean)
     if checkpoint.get("frame") != FRAME:
-        raise SystemExit(f"{path} is a world-frame policy from before observations and actions "
-                         "moved to the body frame. Start a new run: --fresh, or another --train.run_dir.")
+        raise SystemExit(f"{path} is from an older observation layout or network ({checkpoint.get('frame')!r}, "
+                         f"now {FRAME!r}). Start a new run: --fresh, or another --train.run_dir.")
 
 
-def load_model(path, obs_dim, act_dim, ppo_cfg):
-    model = ActorCritic(obs_dim, act_dim, ppo_cfg.hidden_size, ppo_cfg.init_log_std)
+def make_model(cfg):
+    return ActorCritic(obs_dim(cfg.env), 2, cfg.ppo.hidden_size, cfg.ppo.init_log_std,
+                       action_scale=cfg.env.max_accel)
+
+
+def load_model(path, cfg):
+    model = make_model(cfg)
     checkpoint = torch.load(path, weights_only=False)
-    check_checkpoint(checkpoint, obs_dim, path)
+    check_checkpoint(checkpoint, obs_dim(cfg.env), path)
     model.load_state_dict(checkpoint["model"])
     return model
 
@@ -187,14 +198,15 @@ class Trainer:
 
         set_seed(cfg.train.seed)
         self.env = VecBoidsEnv(cfg.env, cfg.reward, cfg.train.n_envs, seed=cfg.train.seed)
-        self.model = ActorCritic(self.env.obs_dim, self.env.act_dim, cfg.ppo.hidden_size, cfg.ppo.init_log_std)
+        self.model = make_model(cfg)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=cfg.ppo.lr, eps=1e-5)
         self.shuffle_rng = np.random.default_rng(cfg.train.seed)
 
         self.T = cfg.train.rollout_steps
         self.B = self.env.n_envs * self.env.n_agents
-        self.tracker = EpisodeTracker(self.B)
+        self.tracker = EpisodeTracker(self.B, self.env.n_envs)
         self.obs = self.env.reset()
+        self.tracker.partial[:] = [env.t > 0 for env in self.env.envs]
         self.last_reward = np.zeros(self.B, np.float32)
         self.update = 0
 
@@ -230,6 +242,7 @@ class Trainer:
             self.env.set_state(checkpoint["env_state"])
             self.obs = checkpoint["obs"]
             self.tracker.running = checkpoint["tracker_running"]
+            self.tracker.partial = checkpoint["tracker_partial"]
         else:
             self.new_worlds = True
 

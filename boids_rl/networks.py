@@ -21,15 +21,22 @@ class ActorCritic(nn.Module):
     # every boid uses this same network
     # actor gives the mean of a Gaussian, log_std is one learned number per action dim (not per state)
 
-    def __init__(self, obs_dim, act_dim, hidden_size=64, init_log_std=0.0):
+    def __init__(self, obs_dim, act_dim, hidden_size=64, init_log_std=0.0, action_scale=1.0):
         super().__init__()
+        self.action_scale = action_scale
         # tiny output gain so the untrained policy starts with near-zero mean actions
         self.actor = mlp(obs_dim, act_dim, hidden_size, out_gain=0.01)
         self.critic = mlp(obs_dim, 1, hidden_size, out_gain=1.0)
         self.log_std = nn.Parameter(torch.full((act_dim,), float(init_log_std)))
 
+    def actor_parameters(self):
+        return [*self.actor.parameters(), self.log_std]
+
     def dist(self, obs):
-        return Normal(self.actor(obs), self.log_std.exp())
+        # the mean is squashed into [-action_scale, action_scale]: the env clips accelerations past
+        # max_accel, so a mean out there would get no gradient back and could drift off for good
+        mean = self.action_scale * torch.tanh(self.actor(obs))
+        return Normal(mean, self.log_std.exp())
 
     def value(self, obs):
         return self.critic(obs).squeeze(-1)

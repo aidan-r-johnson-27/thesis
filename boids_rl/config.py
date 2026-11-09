@@ -50,7 +50,7 @@ class PPOConfig:
     gae_lambda: float = 0.95
     clip_eps: float = 0.2
     n_epochs: int = 4
-    minibatch_size: int = 4096      # a rollout is rollout_steps * n_envs * n_agents (131k) rows
+    minibatch_size: int = 4096      # a rollout is rollout_steps * n_envs * n_agents (32k) rows
     value_coef: float = 0.5
     entropy_coef: float = 0.0
     max_grad_norm: float = 0.5

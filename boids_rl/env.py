@@ -35,10 +35,10 @@ def to_world(vectors, heading):
 
 
 def obs_dim(env_cfg):
-    # own velocity (2) + k neighbours * (rel pos, rel vel) (4 each)
-    return 2 + 4 * env_cfg.k_neighbors
+    # own velocity (2) + k neighbours * (rel pos, rel vel, visible) (5 each)
+    return 2 + 5 * env_cfg.k_neighbors
     # predators (off): + predator pos, vel, visible (5)
-    # return 2 + 4 * env_cfg.k_neighbors + 5
+    # return 2 + 5 * env_cfg.k_neighbors + 5
 
 
 @dataclass
@@ -238,8 +238,11 @@ class BoidsEnv:
         own_vel = to_body(data.vel, heading) / cfg.max_speed
         nbr_pos = to_body(data.rel_pos, heading) / cfg.neighbor_radius
         nbr_vel = to_body(data.rel_vel, heading) / (2 * cfg.max_speed)
-        # one block of 4 numbers per neighbour slot: (pos fwd, pos left, vel fwd, vel left)
-        neighbours = np.concatenate([nbr_pos, nbr_vel], axis=-1).reshape(len(heading), -1)
+        # one block of 5 numbers per neighbour slot: (pos fwd, pos left, vel fwd, vel left, visible)
+        # an empty slot is all zeros, which without the flag reads the same as a neighbour sitting
+        # exactly on top of me going my speed
+        visible = data.mask[..., None].astype(float)
+        neighbours = np.concatenate([nbr_pos, nbr_vel, visible], axis=-1).reshape(len(heading), -1)
         obs = np.concatenate([own_vel, neighbours], axis=1)
         # predators (off)
         # pred_pos = to_body(data.pred_rel_pos, heading) / cfg.neighbor_radius
@@ -370,7 +373,12 @@ class VecBoidsEnv:
         return self.envs[0].t
 
     def reset(self):
-        return np.concatenate([env.reset() for env in self.envs])
+        obs = np.concatenate([env.reset() for env in self.envs])
+        # spread the worlds' clocks over the episode so they don't all restart on the same step;
+        # in lockstep every rollout is mostly freshly scattered boids or mostly settled flocks
+        for i, env in enumerate(self.envs):
+            env.t = i * self.cfg.max_steps // self.n_envs
+        return obs
 
     def get_state(self):
         return [env.get_state() for env in self.envs]
@@ -389,9 +397,10 @@ class VecBoidsEnv:
         infos = [r[4] for r in results]
         terms = {name: np.concatenate([i["terms"][name] for i in infos]) for name in infos[0]["terms"]}
         info = {"terms": terms}
-        # all worlds start together, so they all get truncated on the same step
-        if "final_obs" in infos[0]:
-            info["final_obs"] = np.concatenate([i["final_obs"] for i in infos])
+        # worlds are staggered, so only some get cut off on a given step; the others fill their rows
+        # with their normal obs (final_obs is only read where a world was cut off)
+        if any("final_obs" in i for i in infos):
+            info["final_obs"] = np.concatenate([i.get("final_obs", r[0]) for i, r in zip(infos, results)])
         return obs, reward, terminated, truncated, info
 
     def flock_metrics(self):

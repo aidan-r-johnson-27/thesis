@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from boids_rl.config import Config, add_config_args, apply_config_args
-from boids_rl.env import BoidsEnv, mean_nn_distance, obs_dim, polarization
+from boids_rl.env import BoidsEnv, mean_nn_distance, polarization
 from boids_rl.rewards import REWARD_TERMS
 from boids_rl.train import load_model, set_seed
 
@@ -63,7 +63,7 @@ def load_run(run_dir, checkpoint=None, args=None):
         apply_config_args(cfg, args)
     if checkpoint is None:
         checkpoint = os.path.join(run_dir, "checkpoints", "latest.pt")
-    return cfg, load_model(checkpoint, obs_dim(cfg.env), 2, cfg.ppo)
+    return cfg, load_model(checkpoint, cfg)
 
 
 def main():

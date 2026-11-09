@@ -10,10 +10,10 @@ from boids_rl.env import BoidsEnv, clip_norm, to_body
 # a policy here takes the env and returns world-frame accelerations, one row per boid
 
 # classic boids weights: separation wins up close, alignment and cohesion shape the flock
+# (the separation distance is the reward's reward.separation_dist, so both aim for the same spacing)
 W_SEPARATION = 1.5
 W_ALIGNMENT = 1.0
 W_COHESION = 1.0
-SEPARATION_DIST = 0.8
 
 
 def unit(vectors):
@@ -28,7 +28,7 @@ def reynolds(env):
     sees_anyone = data.mask.any(axis=1)[:, None]
 
     # push away from close neighbours, harder the closer they are (1 / dist)
-    too_close = data.mask & (data.dist < SEPARATION_DIST)
+    too_close = data.mask & (data.dist < env.reward_cfg.separation_dist)
     push = data.rel_pos / np.maximum(data.dist, 1e-8)[..., None] ** 2
     away = -(push * too_close[..., None]).sum(axis=1)
     separation = np.where(too_close.any(axis=1)[:, None], unit(away) * cfg.max_speed - data.vel, 0.0)

@@ -69,7 +69,10 @@ def ppo_update(model, optimizer, buf, advantages, returns, cfg, rng):
 
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.max_grad_norm)
+            # actor and critic are clipped separately: the critic's gradient is 100x bigger (returns
+            # are around -100), so clipping them as one vector would shrink every policy step with it
+            torch.nn.utils.clip_grad_norm_(model.actor_parameters(), cfg.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(model.critic.parameters(), cfg.max_grad_norm)
             optimizer.step()
 
             with torch.no_grad():
