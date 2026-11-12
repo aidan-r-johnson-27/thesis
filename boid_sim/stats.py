@@ -81,7 +81,8 @@ def measure(pos, vel, size, collision_radius):
     cosines = (unit(rel_vel + vel[:, None, :]) * unit(vel)[:, None, :]).sum(axis=-1)
     alignment = np.where(mask, (cosines - 1) / 2, 0.0).sum(axis=1) / np.maximum(n_visible, 1)
     centre = rel_pos.sum(axis=1) / np.maximum(n_visible, 1)[:, None]
-    cohesion = -np.linalg.norm(centre, axis=1) / neighbor_radius
+    slack = max(neighbor_radius - RL_SEPARATION_DIST, 1e-8)
+    cohesion = -np.clip((np.linalg.norm(centre, axis=1) - RL_SEPARATION_DIST) / slack, 0.0, 1.0)
 
     metrics = {
         "polarization": float(np.linalg.norm(unit(vel).mean(axis=0))),
@@ -90,7 +91,7 @@ def measure(pos, vel, size, collision_radius):
         "largest_group": float(largest_group_fraction(len(pos), src, dst)),
         "term_collision": float(-collided.mean()),
         "term_separation": float(-np.minimum(crowding.sum(axis=1), 1.0).mean()),
-        "term_alignment": float(np.where(n_visible > 0, alignment, -1.0).mean()),
+        "term_alignment": float(np.where(n_visible > 0, alignment, -0.5).mean()),
         "term_cohesion": float(np.where(n_visible > 0, cohesion, -1.0).mean()),
     }
     return metrics, collided
