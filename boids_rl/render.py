@@ -60,7 +60,7 @@ def render_episode(model, cfg, path, seed=None, fps=20):
 
 def main():
     parser = argparse.ArgumentParser(description="Animate one deterministic episode.")
-    parser.add_argument("run_dir")
+    parser.add_argument("run_dir", nargs="?", help="default: the latest run in boids_rl/runs/")
     parser.add_argument("out", help="output path, .gif or .mp4 (mp4 needs ffmpeg)")
     parser.add_argument("--checkpoint", help="default: <run_dir>/checkpoints/latest.pt")
     parser.add_argument("--seed", type=int, help="episode seed (default: eval.seed from the config)")

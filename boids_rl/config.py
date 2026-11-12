@@ -64,7 +64,7 @@ class TrainConfig:
     total_env_steps: int = 400_000  # summed over envs; every env step gives n_agents samples
     rollout_steps: int = 128        # steps per env per rollout
     n_envs: int = 4
-    run_dir: str = "runs/default"
+    run_dir: str = ""               # empty = a new run_<date>_<time> folder in boids_rl/runs/
     checkpoint_every: int = 50      # in PPO updates
 
 
@@ -104,39 +104,6 @@ class Config:
     def load(cls, path):
         with open(path) as f:
             return cls.from_dict(json.load(f))
-
-
-@dataclass
-class ExperimentConfig:
-    # settings for experiments.py
-    name: str = "ablation"          # results go to <results_dir>/<name>/
-    results_dir: str = "results"
-    ablations: tuple = ("reynolds",)
-    # ablations: tuple = ("survival", "no_confusion", "no_predator", "no_collisions", "reynolds")
-    seeds: tuple = (0, 1, 2)
-    workers: int = 1                # runs trained in parallel
-    eval_flock_sizes: tuple = (8, 32, 64)  # extra evals at other flock sizes, to test generalization
-
-
-# each ablation changes a few "<section>.<field>" settings and leaves the rest as the base config
-ABLATIONS = {
-    "reynolds": {},
-    # predators (off): the old survival task and its ablations
-    # "survival": {"env.n_predators": 16, "env.collision_radius": 0.25, "reward.w_caught": 1.0,
-    #              "reward.w_collision": 1.0, "reward.w_separation": 0.0, "reward.w_cohesion": 0.0,
-    #              "reward.w_alignment": 0.0},
-    # "no_confusion": {**survival, "env.confusion": 0.0},
-    # "no_predator": {**survival, "env.n_predators": 0},
-    # "no_collisions": {**survival, "env.collision_radius": 0.0},
-}
-
-
-def apply_overrides(cfg, overrides):
-    # overrides look like {"env.n_agents": 32}
-    for key, value in overrides.items():
-        section, name = key.split(".")
-        setattr(getattr(cfg, section), name, value)
-    return cfg
 
 
 def parse_bool(text):

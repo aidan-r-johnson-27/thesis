@@ -8,17 +8,16 @@ import torch
 
 from boids_rl.config import Config, add_config_args, apply_config_args
 from boids_rl.env import BoidsEnv
-from boids_rl.train import CSV_FIELDS, Trainer
+from boids_rl.train import CSV_FIELDS, RUNS_DIR, Trainer, latest_run_dir
 
 # env steps per frame; 0 means "as many as fit in the frame" and is only reachable with the arrow keys
 SPEEDS = [1, 2, 4, 8, 16, 32, 128, 0]
-DEFAULT_RUN_DIR = "runs/live"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train (or watch) the boid policy live.")
     parser.add_argument("--demo", action="store_true", help="start in demo mode (deterministic policy, no learning)")
-    parser.add_argument("--fresh", action="store_true", help="ignore the run's checkpoint and start from scratch")
+    parser.add_argument("--fresh", action="store_true", help="start a new run instead of resuming the latest one")
     parser.add_argument("--speed", type=int, default=1, choices=[s for s in SPEEDS if s > 0],
                         help="starting speed (env steps per frame)")
     parser.add_argument("--updates", type=int, default=0, help="stop after this many more PPO updates (0 = keep going)")
@@ -27,13 +26,26 @@ def parse_args():
 
 
 def make_trainer(args, fresh):
-    # resume the run if it has a checkpoint (its saved config plus any flags on top), else start a new one
-    run_dir = getattr(args, "train.run_dir") or DEFAULT_RUN_DIR
-    resume = not fresh and os.path.exists(os.path.join(run_dir, "checkpoints", "latest.pt"))
+    # resume the given run, or else the latest one, if it has a checkpoint (its saved config plus any
+    # flags on top); otherwise start a new run, in a new run_<date>_<time> folder unless one was given
+    run_dir = getattr(args, "train.run_dir")
+    if run_dir is None and not fresh:
+        run_dir = latest_run_dir()
+    resume = not fresh and run_dir is not None and os.path.exists(os.path.join(run_dir, "checkpoints", "latest.pt"))
+    if args.demo and not fresh and not resume:
+        raise SystemExit(f"nothing to demo: no trained run in {run_dir or RUNS_DIR}; train one with run.sh first")
     cfg = Config.load(os.path.join(run_dir, "config.json")) if resume else Config()
-    cfg.train.run_dir = run_dir
+    cfg.train.run_dir = run_dir or ""
     apply_config_args(cfg, args)
     return Trainer(cfg, resume=resume, verbose=False), resume
+
+
+def save_if_trained(trainer):
+    # an untrained checkpoint would become the "latest run" that --demo, eval and render pick up
+    if trainer.update == 0:
+        return False
+    trainer.save()
+    return True
 
 
 def read_history(trainer):
@@ -64,9 +76,9 @@ def main():
     show_trails, show_focus, color_mode = True, True, "plain"
     view_index = 0   # which training env is on screen
 
-    message = ""
+    message = f"new run {os.path.basename(cfg.train.run_dir)}"
     if resumed:
-        message = f"resumed {cfg.train.run_dir} at update {trainer.update}"
+        message = f"resumed {os.path.basename(cfg.train.run_dir)} at update {trainer.update}"
         if trainer.new_worlds:
             message += f" (new worlds: {cfg.env.n_agents} boids, size {cfg.env.world_size:g})"
     message_until = time.time() + 2.5
@@ -124,12 +136,15 @@ def main():
                     trainer.save()
                     notify(f"saved checkpoint (update {trainer.update})")
                 elif key == pygame.K_r:
+                    # keep the old run: save it, and put the new one in its own new folder
+                    save_if_trained(trainer)
+                    setattr(args, "train.run_dir", None)
                     trainer, _ = make_trainer(args, fresh=True)
                     history = read_history(trainer)
                     learning, view_index = True, 0
                     stop_at_update = trainer.update + args.updates if args.updates else None
                     sps, sps_steps, sps_since = 0.0, 0, time.time()
-                    notify("training reset")
+                    notify(f"new run {os.path.basename(trainer.cfg.train.run_dir)}")
 
         # with the world hidden there's nothing to watch, so always go max speed
         speed = SPEEDS[speed_index] if show_world else 0
@@ -205,10 +220,10 @@ def main():
         ui.draw(world, history, info, show_world)
         clock.tick(60 if show_world else 0)
 
-    trainer.save()
     pygame.quit()
-    print(f"saved {trainer.latest}  update {trainer.update:,}  "
-          f"env steps {trainer.update * trainer.steps_per_update:,}")
+    if save_if_trained(trainer):
+        print(f"saved {trainer.latest}  update {trainer.update:,}  "
+              f"env steps {trainer.update * trainer.steps_per_update:,}")
 
 
 if __name__ == "__main__":

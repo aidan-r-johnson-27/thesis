@@ -102,12 +102,11 @@ Boids learn to flock with PPO instead of following hand-coded rules. Every boid 
 
 ```
 cd boids_rl
-./run.sh              # train live, with the world on the left and training charts on the right
-./run.sh --demo       # watch the current policy without learning
-./run.sh --fresh      # ignore the saved checkpoint and start over
+./run.sh              # start a new run and train it live, with the world on the left and training charts on the right
+./run.sh --demo       # watch the latest run's policy without learning
 ```
 
-`run.sh` creates `.venv` at the repo root, installs CPU-only `torch` and the packages in `boids_rl/requirements.txt`, then starts `python -m boids_rl.live`. The live run saves to `runs/live/` and resumes from its checkpoint next time.
+`run.sh` creates `.venv` at the repo root, installs CPU-only `torch` and the packages in `boids_rl/requirements.txt`, then starts `python -m boids_rl.live`. Each new run saves to its own folder, `boids_rl/runs/run_<date>_<time>/`, so every launch of `run.sh` (and R in the window) starts a new run and keeps the old ones. To continue the latest run instead, start it without `run.sh`: `.venv/bin/python -m boids_rl.live`.
 
 ### The task
 
@@ -130,19 +129,14 @@ Run these from the repo root with `.venv/bin/python -m boids_rl.<module>`:
 | Module           | Purpose                                                                   |
 | ---------------- | ------------------------------------------------------------------------- |
 | `live`           | Live training and demo window (what `run.sh` starts)                      |
-| `train`          | Headless training; `--resume` continues from `<run_dir>`                   |
-| `eval`           | Deterministic evaluation of a run: `eval <run_dir> [--out x.json] [--render x.gif]` |
-| `render`         | Save a GIF/MP4 of one episode: `render <run_dir> out.gif`                 |
-| `baselines`      | Flock metrics for scripted `reynolds` or `random` steering               |
-| `experiments`    | Every ablation × seed, plus summary tables and plots in `results/`       |
-| `sweep`          | Random search over task settings, scored against scripted Reynolds       |
+| `train`          | Headless training; `--resume` continues the latest run (or `--train.run_dir`) |
+| `eval`           | Deterministic evaluation of a run: `eval [run_dir] [--out x.json] [--render x.gif]` |
+| `render`         | Save a GIF/MP4 of one episode: `render [run_dir] out.gif`                 |
 
 Supporting files: `env.py` (simulation and observations), `rewards.py`, `networks.py` (actor-critic MLP), `ppo.py` (rollout buffer, GAE, update) and `config.py`.
 
-Every setting in `config.py` is also a command-line flag of the form `--<section>.<field>`, e.g. `--env.n_agents 32` or `--reward.w_cohesion 0`. A run saves its config to `<run_dir>/config.json` and saves checkpoints every 50 PPO updates.
+Every setting in `config.py` is also a command-line flag of the form `--<section>.<field>`, e.g. `--env.n_agents 32` or `--reward.w_cohesion 0`. A run saves its config to `<run_dir>/config.json` and saves checkpoints every 50 PPO updates. Runs go to `boids_rl/runs/run_<date>_<time>/` unless `--train.run_dir` says otherwise; commands that take a run dir default to the most recently saved run.
 
-> [!NOTE]
-> `sweep.py` still searches only `collision_radius` and `w_collision`, and collisions are off in the current task. Give it a new search space before running it.
 
 ### Live controls
 

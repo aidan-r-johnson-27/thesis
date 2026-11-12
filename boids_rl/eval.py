@@ -8,7 +8,7 @@ import torch
 from boids_rl.config import Config, add_config_args, apply_config_args
 from boids_rl.env import BoidsEnv, mean_nn_distance, polarization
 from boids_rl.rewards import REWARD_TERMS
-from boids_rl.train import load_model, set_seed
+from boids_rl.train import load_model, run_dir_or_latest, set_seed
 
 
 def run_episode(model, env):
@@ -21,7 +21,7 @@ def run_episode(model, env):
 
 
 def evaluate(model, cfg):
-    # mean_return depends on the run's own reward weights, so don't compare it across ablations
+    # mean_return depends on the run's own reward weights, so don't compare it across runs with different weights
     # the raw term_* values and the flock metrics are fine to compare
     set_seed(cfg.eval.seed)
     env = BoidsEnv(cfg.env, cfg.reward, seed=cfg.eval.seed, auto_reset=False)
@@ -57,7 +57,8 @@ def evaluate(model, cfg):
     return results
 
 
-def load_run(run_dir, checkpoint=None, args=None):
+def load_run(run_dir=None, checkpoint=None, args=None):
+    run_dir = run_dir_or_latest(run_dir)
     cfg = Config.load(os.path.join(run_dir, "config.json"))
     if args is not None:
         apply_config_args(cfg, args)
@@ -68,7 +69,7 @@ def load_run(run_dir, checkpoint=None, args=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate a trained policy deterministically.")
-    parser.add_argument("run_dir")
+    parser.add_argument("run_dir", nargs="?", help="default: the latest run in boids_rl/runs/")
     parser.add_argument("--checkpoint", help="default: <run_dir>/checkpoints/latest.pt")
     parser.add_argument("--out", help="also write the metrics to this JSON file")
     parser.add_argument("--render", metavar="PATH", help="save an animation of one episode (.gif or .mp4)")

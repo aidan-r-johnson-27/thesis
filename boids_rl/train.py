@@ -1,5 +1,6 @@
 import argparse
 import csv
+import glob
 import os
 import shutil
 import time
@@ -12,6 +13,36 @@ from boids_rl.env import VecBoidsEnv, obs_dim
 from boids_rl.networks import ActorCritic
 from boids_rl.ppo import RolloutBuffer, compute_gae, ppo_update
 from boids_rl.rewards import REWARD_TERMS
+
+
+# runs are saved here by default, each in its own run_<date>_<time> folder
+RUNS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
+
+
+def new_run_dir():
+    # dashes rather than colons in the time, since colons break paths on Windows and in some tools
+    name = "run_" + time.strftime("%Y-%m-%d_%H-%M-%S")
+    path, n = os.path.join(RUNS_DIR, name), 2
+    # two runs started in the same second
+    while os.path.exists(path):
+        path, n = os.path.join(RUNS_DIR, f"{name}_{n}"), n + 1
+    return path
+
+
+def latest_run_dir():
+    # the run in RUNS_DIR that saved a checkpoint most recently, or None if there isn't one
+    checkpoints = glob.glob(os.path.join(RUNS_DIR, "*", "checkpoints", "latest.pt"))
+    if not checkpoints:
+        return None
+    return os.path.dirname(os.path.dirname(max(checkpoints, key=os.path.getmtime)))
+
+
+def run_dir_or_latest(run_dir):
+    # for commands whose run dir is optional: default to the latest run
+    run_dir = run_dir or latest_run_dir()
+    if run_dir is None:
+        raise SystemExit(f"no saved runs in {RUNS_DIR}; pass a run dir")
+    return run_dir
 
 
 def set_seed(seed):
@@ -192,8 +223,15 @@ class Trainer:
     def __init__(self, cfg, resume=False, verbose=True):
         self.cfg = cfg
         self.verbose = verbose
+        if not cfg.train.run_dir:
+            cfg.train.run_dir = new_run_dir()
         run_dir = cfg.train.run_dir
         self.ckpt_dir = os.path.join(run_dir, "checkpoints")
+        self.latest = os.path.join(self.ckpt_dir, "latest.pt")
+        # a new run here would wipe the old run's progress.csv and mix its checkpoints in with them
+        if not resume and os.path.exists(self.latest):
+            raise SystemExit(f"{run_dir} already has a trained run; resume it, or give the new run "
+                             "another --train.run_dir")
         os.makedirs(self.ckpt_dir, exist_ok=True)
 
         set_seed(cfg.train.seed)
@@ -210,7 +248,6 @@ class Trainer:
         self.last_reward = np.zeros(self.B, np.float32)
         self.update = 0
 
-        self.latest = os.path.join(self.ckpt_dir, "latest.pt")
         # set when resuming with a different env config: keep the policy but start new worlds
         self.new_worlds = False
         if resume:
@@ -320,15 +357,17 @@ def train(cfg, resume=False, verbose=True):
 def main():
     parser = argparse.ArgumentParser(description="Train the shared boid policy with PPO.")
     parser.add_argument("--resume", action="store_true",
-                        help="continue from <run_dir>/checkpoints/latest.pt using <run_dir>/config.json; "
-                             "flags given here still override it (e.g. a larger --train.total_env_steps)")
+                        help="continue from <run_dir>/checkpoints/latest.pt using <run_dir>/config.json "
+                             "(default run_dir: the latest run in boids_rl/runs/); flags given here still "
+                             "override it (e.g. a larger --train.total_env_steps)")
     add_config_args(parser)
     args = parser.parse_args()
 
     cfg = Config()
     if args.resume:
-        run_dir = getattr(args, "train.run_dir") or cfg.train.run_dir
+        run_dir = run_dir_or_latest(getattr(args, "train.run_dir"))
         cfg = Config.load(os.path.join(run_dir, "config.json"))
+        cfg.train.run_dir = run_dir
     train(apply_config_args(cfg, args), resume=args.resume)
 
 
